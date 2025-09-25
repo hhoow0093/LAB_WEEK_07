@@ -1,12 +1,16 @@
 package eu.tutorials.lab_week_07
 
+import android.Manifest
 import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.location.Location
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 
@@ -17,6 +21,9 @@ import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
 import eu.tutorials.lab_week_07.databinding.ActivityMapsBinding
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 
 //This is the variable through which we will launch the permission request and track user responses
 private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
@@ -48,6 +55,13 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private lateinit var mMap: GoogleMap
     private lateinit var binding: ActivityMapsBinding
+
+    //A google play location service which helps us interact with Google's Fused Location Provider API
+    //The API intelligently provides us with the device location information
+    private val fusedLocationProviderClient by lazy {
+        LocationServices.getFusedLocationProviderClient(this)
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,9 +122,50 @@ class MapsActivity : AppCompatActivity(), OnMapReadyCallback {
                 .launch(ACCESS_FINE_LOCATION)
         }
     }
+    @SuppressLint("MissingPermission")
+    private fun requestCurrentLocation() {
+        // A token for cancelling the location request if needed
+        val cancellationTokenSource = CancellationTokenSource()
 
-
-    private fun getLastLocation(){
-        Log.d("MapsActivity", "getLastLocation called")
+        fusedLocationProviderClient.getCurrentLocation(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            cancellationTokenSource.token
+        ).addOnSuccessListener { location: Location? ->
+            if (location != null) {
+                val userLocation = LatLng(location.latitude, location.longitude)
+                updateMapLocation(userLocation)
+                addMarkerAtLocation(userLocation, "Current Location")
+            } else {
+                Log.e("MapsActivity", "Could not get current location.")
+            }
+        }
     }
-}
+
+
+    //Executed when the location permission has been granted by the user
+    @SuppressLint("MissingPermission")
+    private fun getLastLocation() {
+        mMap.isMyLocationEnabled = true
+        fusedLocationProviderClient.lastLocation
+            .addOnSuccessListener { location: Location? ->
+                if (location != null) {
+                    val userLocation = LatLng(-6.254107, 106.616616)
+                    updateMapLocation(userLocation)
+                    addMarkerAtLocation(userLocation, "Last Location")
+                } else {
+                    Log.d("MapsActivity", "Last location is null. Requesting current location.")
+                }
+            }
+    }
+
+    private fun updateMapLocation(location: LatLng) {
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+            location, 7f))
+    }
+    private fun addMarkerAtLocation(location: LatLng, title: String) {
+        mMap.addMarker(MarkerOptions().title(title)
+            .position(location))
+    }
+
+
+    }
